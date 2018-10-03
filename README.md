@@ -34,7 +34,7 @@ and attacks all test images with one of many available adversarial attacks.
 ### Citation
 If you find Tulip and/or this type of regularization useful in your scientific work, please consider citing it as
 ```
-@article{rauber2017foolbox,
+@article{finlay2018tulip,
   title={Improved robustness to adversarial examples using {L}ipschitz regularization of the loss},
   author={Finlay, Chris and Oberman, Adam and Abbasi, Bilal},
   journal={arXiv preprint arXiv:1810.00953},

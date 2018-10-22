@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser('Testbed for DNN optimization in PyTorch')
 parser.add_argument('--data', type=str, required=True, metavar='DIR',
         help='data storage directory')
 parser.add_argument('--dataset', type=str, default='cifar10', metavar='DS',
-        choices=['cifar10','cifar100', 'TinyImageNet','Fashion'])
+        choices=['cifar10','cifar100','Fashion'])
 parser.add_argument('--data-workers', type=int, default=4, metavar='N',
         help='number of data loading workers. (default: 4)')
 parser.add_argument('--log-interval', type=int, default=100, metavar='N',

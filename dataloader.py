@@ -49,46 +49,7 @@ def cutout(mask_size,channels=3):
 
 
 
-def TinyImageNet(args, train=True, transform=True):
-
-    dataset_dir = os.path.join(args.data,'TinyImageNet')
-
-    kwargs = {'num_workers': args.data_workers, 'pin_memory': args.has_cuda}
-
-
-    if train and transform:
-        d = os.path.join(dataset_dir,'train')
-        train_dataset = torchvision.datasets.ImageFolder(d, transforms.Compose([
-                        transforms.RandomHorizontalFlip(),
-                        cutout(args.cutout),
-                        transforms.ToTensor()]))
-
-        ds = th.utils.data.DataLoader(train_dataset, batch_size =
-                args.batch_size, shuffle = True, drop_last=True,
-                **kwargs)
-
-
-    else:
-        if not train:
-            d = os.path.join(dataset_dir,'val')
-        else:
-            d = os.path.join(dataset_dir,'train')
-        test_dataset = torchvision.datasets.ImageFolder(d,
-                transforms.Compose([transforms.ToTensor()]))
-        bs = args.batch_size if train else args.test_batch_size
-        ds  = th.utils.data.DataLoader(test_dataset, batch_size = bs,
-                shuffle = False,
-                drop_last = False, **kwargs  )
-
-
-    ds.Ntrain = 100000
-    ds.classes = 200
-    ds.in_channels = 3
-    ds.in_shape = 64
-
-    return ds
-
-def Fashion(args,train=True, prob = 0.1, transform=True):
+def Fashion(args,train=True,  transform=True):
 
     if train and transform:
         tlist = [transforms.RandomCrop(28,padding=4),

@@ -2,8 +2,8 @@ import argparse
 import yaml
 import os, sys
 import ast
-from warnings import warn
 import contextlib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -21,16 +21,13 @@ parser.add_argument('--model-dir', type=str, required=True,metavar='DIR',
         help='Directory where model is saved')
 parser.add_argument('--num-images', type=int, default=10000,metavar='N',
         help='total number of images to attack')
-parser.add_argument('--batch-size', type=int, default=100,metavar='N',
+parser.add_argument('--batch-size', type=int, default=1,metavar='N',
         help='number of images to attack at a time')
 parser.add_argument('--norm-type', type=str, default='L2',metavar='NORM', 
         choices=['L2','Linf'])
-parser.add_argument('--epsilon',nargs='+',type=float,metavar='EPS',
-        default = [0,1e-4,1e-3,1e-2,1e-1,1,10,100],
-        help='Report a summary of attacks with these magnitudes')
-parser.add_argument('--attack-type', type=str, default='gradient',
+parser.add_argument('--attack-type', type=str, default='iterative-gradient',
         choices=['deepfool','iterative-gradient','gradient','boundary','fgsm','ifgsm'],
-        help='Attack type (default: gradient)')
+        help='Attack type (default: iterative-gradient)')
 
 
 args = parser.parse_args()
@@ -109,7 +106,8 @@ elif args.attack_type=='fgsm':
 elif args.attack_type=='ifgsm':
     attack = foolbox.attacks.LinfinityBasicIterativeAttack(model=fmodel, criterion=attack_criteria)
 
-d = np.zeros(args.num_images)
+d2 = np.zeros(args.num_images)
+dinf = np.zeros(args.num_images)
 for i, (x,y) in enumerate(loader):
     for j in range(len(y)):
         if i*args.batch_size + j >= args.num_images:
@@ -121,26 +119,32 @@ for i, (x,y) in enumerate(loader):
         La = y[j].item()
 
         adversarial = foolbox.adversarial.Adversarial(fmodel, attack_criteria, Im, La)
-        if not args.attack_type=='boundary':
-            attack(adversarial)
+        with open(os.devnull,'w') as f:
+            with contextlib.redirect_stdout(f):
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore')
+                    if not args.attack_type=='boundary':
+                        attack(adversarial)
+                    else:
+                        attack(adversarial, iterations=100)
+        Pert = adversarial.image
+        if Pert is not None:
+            Diff = Pert - Im
+
+            l2 = np.sqrt(np.sum(Diff**2))
+            linf = np.max(np.abs(Diff))
+
+            d2[i*args.batch_size + j] = l2
+            dinf[i*args.batch_size + j] = linf
         else:
-            with open(os.devnull,'w') as f:
-                with contextlib.redirect_stdout(f):
-                    attack(adversarial, iterations=100)
-        l2 = np.sqrt(num_pixels*adversarial.distance.value)
+            d2[i*args.batch_size + j] = 0.
+            dinf[i*args.batch_size + j] = 0.
 
-        d[i*args.batch_size + j] = l2
 
-d = np.sort(d)
+attackdata = pd.DataFrame({ 'l2':d2,
+                           'linf':dinf})
 st = args.attack_type
 if args.attack_type in ['deepfool', 'iterative-gradient']:
     st = st + '-'+args.norm_type
 
-np.save(os.path.join(args.model_dir,'foolbox-'+st+'-dist.npy'),d)
-
-n = [(d<=e).sum()*100/args.num_images for e in args.epsilon]
-
-df = pd.DataFrame({'epsilon':args.epsilon, 'pct err':n})
-attack_log = open(args.model_dir + '/foolbox-'+st+'-dist.out', 'w')
-print(df, file=attack_log)
-print(df)
+attackdata.to_pickle(os.path.join(args.weights_root,'foolbox-'+st+'-dist.pkl'))

@@ -7,7 +7,6 @@ import yaml
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import grad
 import torch.backends.cudnn as cudnn
 from torch import optim
 import torchnet as tnt
@@ -15,6 +14,7 @@ from torch.nn.modules.utils import  _pair
 import ast
 
 import dataloader
+import adversarial_training
 import models
 from models.utils import num_parameters
 from penalties import LipschitzPenalty, TikhonovPenalty
@@ -115,6 +115,15 @@ def add_penalties(loss, data):
 
 a_ = [args.J1>0, args.J2>0, args.Jinf>0]
 assert sum(a_)<2, 'Only one adversarial training method may be active' 
+if args.J1>0:
+    perturb = adversarial_training.L1Perturbation(model, args.J1, criterion)
+elif args.J2>0:
+    perturb = adversarial_training.L2Perturbation(model, args.J2, criterion)
+elif args.Jinf>0:
+    perturb = adversarial_training.LInfPerturbation(model, args.Jinf, criterion)
+else:
+    perturb = lambda x, y: x
+
 
 class TrainError(Exception):
     """Exception raised for error during training."""
@@ -138,46 +147,7 @@ def train(epoch, ttot):
         if args.has_cuda:
             data, target = data.cuda(0), target.cuda(0)
 
-        if args.J1>0 or args.J2>0 or args.Jinf>0: # adversarial training
-            data.requires_grad_(True)
-            model.eval()
-            for p in model.parameters():
-                p.requires_grad_(False)
-
-            output = model(data)
-            loss = criterion(output, target)
-            dx = grad(loss, data)[0]
-
-            if args.J2 >0:
-                dt = args.J2
-                dxshape = dx.shape
-                dx = dx.view(args.batch_size,-1)
-                dxn = dx.norm(dim=1, keepdim=True)
-                b = (dxn>0).squeeze()
-                dx[b] = dx[b]/dxn[b]
-                dx = dx.view(*dxshape)
-            elif args.J1 >0:
-                dt = args.J1
-                Nd = args.in_shape**2 * args.in_channels
-                dx = dx.sign() / sqrt(Nd)
-            elif args.Jinf>0:
-                dt = args.Jinf
-                dxshape = dx.shape
-                dx = dx.view(args.batch_size,-1)
-                ix = dx.abs().argmax(dim=-1)
-                dx_ = torch.zeros_like(dx.view(args.batch_size,-1))
-                jx = torch.arange(args.batch_size, device=dx.device)
-                dx_[jx,ix] = dx.sign()[jx,ix]
-                dx = dx_.view(*dxshape)
-                
-
-
-            data = data.detach() + dt*dx
-
-            model.train()
-            for p in model.parameters():
-                p.requires_grad_(True)
-
+        data = perturb(data, target)
 
         if args.lip>0:
             data.requires_grad_()

@@ -21,6 +21,10 @@ For example, in the paper the best (adversarially robust) models were trained wi
 (includes weight decay and a final sigmoid layer). We didn't tune these Lagrange multipliers, 
 and expect better results could be achieved with more tuning effort.
 
+To incorporate this type of regularization into your own training scripts, we have included two modules, 
+`adversarial_training.py` and `penalties.py`. The former contains all necessary functions to perturb training images, 
+while the latter contains code for the Lipschitz penalty.
+
 ### Model summary
 Summary statistics for a trained model are gathered with `summary.py`. This includes the estimate of the Lipschitz constant 
 on the test data, the norm of the product of weight matrices, and best test error.

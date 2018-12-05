@@ -77,3 +77,7 @@ group2.add_argument('--Jinf', type=float, default=0.,
         metavar='L',
         help='Penalize the loss by the average Linf norm '
         'of the gradient wrt the images. (default: 0.)')
+group2.add_argument('--PGDinf', type=str, 
+        metavar="{'epsilon':0.1, 'num_steps':10, 'step_size':0.01, 'random_start':True}",
+        default=None,
+        help='Projected Gradient Descent Adversarial training configuration. (default: None)')

@@ -46,9 +46,9 @@ class L1Perturbation(Perturb):
         self._prep_model()
         x.requires_grad_(True)
         Nd = _prod(x.shape[1:])
-
-        yhat = self.model(x)
-        loss = self.criterion(yhat, y)
+        with torch.enable_grad():
+            yhat = self.model(x)
+            loss = self.criterion(yhat, y)
         dx = grad(loss, x)[0]
 
         p = dx.sign() / sqrt(Nd)
@@ -70,9 +70,9 @@ class L2Perturbation(Perturb):
     def __call__(self, x, y):
         self._prep_model()
         x.requires_grad_(True)
-
-        yhat = self.model(x)
-        loss = self.criterion(yhat, y)
+        with torch.enable_grad():
+            yhat = self.model(x)
+            loss = self.criterion(yhat, y)
         dx = grad(loss, x)[0]
 
         dxshape = dx.shape
@@ -97,9 +97,9 @@ class LInfPerturbation(Perturb):
     def __call__(self, x, y):
         self._prep_model()
         x.requires_grad_(True)
-
-        yhat = self.model(x)
-        loss = self.criterion(yhat, y)
+        with torch.enable_grad():
+            yhat = self.model(x)
+            loss = self.criterion(yhat, y)
         dx = grad(loss, x)[0]
 
         dxshape = dx.shape
@@ -114,3 +114,36 @@ class LInfPerturbation(Perturb):
         self._release_model()
 
         return x.detach() + self.eps*p
+
+class LinfPgdPerturbation(Perturb):
+    """ 
+    PGD Adversarial Training
+    """
+    def __init__(self, model, config, criterion):
+        if 'step_size' not in config:
+            stepSize = 0.
+        else:
+            stepSize = config['step_size']
+        super().__init__(model, stepSize, criterion)
+        self.rand = config['random_start']
+        self.eta = config['epsilon']
+        self.numSteps = config['num_steps']
+
+    def __call__(self, x, y):
+        x_hat = x
+        if self.rand:
+            x_hat = x_hat + torch.zeros_like(x_hat).uniform_(-self.eta, self.eta)
+
+        self._prep_model()
+        for i in range(self.numSteps):
+            x_hat.requires_grad_(True)
+            with torch.enable_grad():
+                logits = self.model(x_hat)
+                loss = self.criterion(logits, y)
+            dx = grad(loss, x_hat)[0]
+            x_hat = x_hat + self.eps * torch.sign(dx)
+            x_hat = torch.min(torch.max(x_hat, x - self.eta), x + self.eta)
+            x_hat = torch.clamp(x_hat, 0, 1)
+        self._release_model()
+        return x_hat.detach()
+

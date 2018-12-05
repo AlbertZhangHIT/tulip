@@ -12,6 +12,7 @@ from torch import optim
 import torchnet as tnt
 from torch.nn.modules.utils import  _pair
 import ast
+from tqdm import tqdm
 
 import dataloader
 import adversarial_training
@@ -20,8 +21,10 @@ from models.utils import num_parameters
 from penalties import LipschitzPenalty, TikhonovPenalty
 import _helpers as helpers
 from _parsers import parser
+from utils import progress_bar
 
-
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # Parse command line and miscellaneous set up
 args = parser.parse_args()
 
@@ -110,7 +113,6 @@ def add_penalties(loss, data):
     if lip >0:
         loss = loss + lip * lipschitz_penalty(loss, data)
 
-
     return loss
 
 a_ = [args.J1>0, args.J2>0, args.Jinf>0]
@@ -121,9 +123,19 @@ elif args.J2>0:
     perturb = adversarial_training.L2Perturbation(model, args.J2, criterion)
 elif args.Jinf>0:
     perturb = adversarial_training.LInfPerturbation(model, args.Jinf, criterion)
+elif args.PGDinf is not None :
+    config = ast.literal_eval(args.PGDinf)
+    perturb = adversarial_training.LinfPgdPerturbation(model, config, criterion)
 else:
     perturb = lambda x, y: x
-
+# config = {
+#     'epsilon': 8.0 / 255, # Test 1.0-8.0
+#     'num_steps': 10,
+#     'step_size': 1.0 / 255, # 5.0
+#     'random_start': True,
+#     'loss_func': 'xent',
+# }
+# perturb = adversarial_training.LinfPgdPerturbation(model, config, criterion)
 
 class TrainError(Exception):
     """Exception raised for error during training."""
@@ -142,6 +154,7 @@ def train(epoch, ttot):
         torch.cuda.synchronize()
     tepoch = time.perf_counter()
     el_loss = tnt.meter.AverageValueMeter()
+    correct = 0; total = 0; train_loss = 0
     for batch_ix, (data, target) in enumerate(train_loader):
 
         if args.has_cuda:
@@ -167,6 +180,13 @@ def train(epoch, ttot):
 
         loss.backward()
         optimizer.step()
+
+        train_loss += loss.data.item()
+        _, predicted = torch.max(output.data, 1)
+        total += target.size(0)
+        correct += predicted.eq(target.data).cpu().sum()
+        progress_bar(batch_ix, len(train_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        % (train_loss/(batch_ix+1), 100.*correct/total, correct, total))
 
         # Report training loss
         if (not (batch_ix % args.log_interval == 0 and batch_ix > 0)
@@ -200,7 +220,8 @@ def test(epoch, ttot):
             if args.has_cuda:
                 target = target.cuda(0,async=True)
                 data = data.cuda(0,async=True)
-
+            data.requires_grad_(True)
+            data = perturb(data, target)
             output = model(data)
 
 
@@ -222,7 +243,7 @@ def test(epoch, ttot):
             if args.has_cuda:
                 target = target.cuda(0,async=True)
                 data = data.cuda(0,async=True)
-
+            data = perturb(data, target)
             output = model(data)
 
             loss = criterion(output, target)

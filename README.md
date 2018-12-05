@@ -8,7 +8,7 @@ We also implement three types of adversarial training:
 1. Standard [FGSM](https://arxiv.org/abs/1412.6572), which we show is equivalent to penalizing by the average 1-norm of the model gradients
 2. Gradient ascent, where images are perturbed in the direction of the model gradient. This is equivalent to penalizing by the average 2-norm of the model gradients
 3. Perturbing images in the maximum entry-wise component of the gradient, which is equivalent to penalizing by the average inf-norm of the gradients.
-
+4. [Projected Gradient Descent adversarial training/attack](https://arxiv.org/pdf/1706.06083.pdf).
 ## Details
 Requires Python 3 and at least PyTorch 0.4.1.
 

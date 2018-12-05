@@ -14,8 +14,8 @@ Requires Python 3 and at least PyTorch 0.4.1.
 
 ### Training
 Models are trained with `train.py`. Lipschitz regularization is enabled by passing 
-the flag `--lip` and a scalar Lagrange multiplier. Similarly FGSM, gradient ascent and maximum-entry adversarial training
-are respectively enabled with the flags `--J1`, `--J2` and `--Jinf`, along with a Lagrange multiplier.
+the flag `--lip` and a scalar Lagrange multiplier. Similarly FGSM, gradient ascent, maximum-entry and PGD adversarial training
+are respectively enabled with the flags `--J1`, `--J2`, `--Jinf` and '--PGDinf', along with a Lagrange multiplier.
 
 For example, in the paper the best (adversarially robust) models were trained with `--tanh --decay 5e-4 --lip 0.1 --J2 0.01` 
 (includes weight decay and a final sigmoid layer). We didn't tune these Lagrange multipliers, 
